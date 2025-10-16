@@ -26,8 +26,8 @@ Follow these instructions to get a local copy of Char.py Web up and running on y
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/your-username/char-py-web.git
-    cd char-py-web
+    git clone https://github.com/nkhearn/ollama_choser_interface.git
+    cd ollama_choser_interface
     ```
 
 2.  **Install the required Python packages:**
