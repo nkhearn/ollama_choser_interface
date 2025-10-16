@@ -102,6 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
         abortController = new AbortController();
         interruptBtn.classList.remove('hidden');
 
+        // Create the UI element for the assistant's message
         const assistantMessageDiv = document.createElement('div');
         assistantMessageDiv.classList.add('message', 'assistant');
         assistantMessageDiv.innerHTML = `<div class="sender">${characterName.textContent}</div><div class="content"></div>`;
@@ -109,6 +110,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const contentDiv = assistantMessageDiv.querySelector('.content');
         let fullResponse = "";
+
+        // Show a loading indicator immediately for better UX
+        contentDiv.textContent = "🤔...";
 
         try {
             const response = await fetch('/api/chat', {
@@ -123,39 +127,76 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
+                // Try to get a specific error message from the server
+                const errorData = await response.json().catch(() => ({ error: 'Server returned an error, but the response was not valid JSON.' }));
                 throw new Error(errorData.error || 'Unknown error from server');
             }
 
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
+            let buffer = '';
+            let isFirstChunk = true; // To clear the loading indicator
 
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
 
-                const chunk = decoder.decode(value);
-                const lines = chunk.split('\n').filter(line => line.trim());
+                if (isFirstChunk) {
+                    contentDiv.textContent = ""; // Clear "🤔..."
+                    isFirstChunk = false;
+                }
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop(); // Keep the potentially incomplete last line
 
                 for (const line of lines) {
-                    const parsed = JSON.parse(line);
-                    const content = parsed.message.content;
-                    fullResponse += content;
-                    contentDiv.textContent = fullResponse; // Update in real-time
+                    if (line.trim() === '') continue;
+                    try {
+                        const parsed = JSON.parse(line);
+                        if (parsed.message && parsed.message.content) {
+                            fullResponse += parsed.message.content;
+                            // Use innerText to properly render newlines from the model
+                            contentDiv.innerText = fullResponse;
+                        }
+                    } catch (e) {
+                        console.error("Failed to parse JSON line:", line, e);
+                    }
                 }
-                chatWindow.scrollTop = 0; // Keep scrolled to bottom (top in reverse)
+                chatWindow.scrollTop = 0; // Keep scrolled to the latest message
             }
 
-            messages.push({ role: 'assistant', content: fullResponse });
+            // After the loop, process any remaining data in the buffer
+            if (buffer.trim()) {
+                try {
+                    const parsed = JSON.parse(buffer);
+                    if (parsed.message && parsed.message.content) {
+                        fullResponse += parsed.message.content;
+                        contentDiv.innerText = fullResponse;
+                    }
+                } catch (e) {
+                    console.error("Failed to parse final JSON buffer:", buffer, e);
+                }
+            }
+
+
+            // Add the complete response to the message history for future context
+            if (fullResponse) {
+                messages.push({ role: 'assistant', content: fullResponse });
+            }
 
         } catch (error) {
+            // Handle fetch errors (like network issues) or server errors
             if (error.name === 'AbortError') {
-                contentDiv.textContent += "\n\n[Response interrupted]";
+                contentDiv.innerText += "\n\n[Response interrupted]";
             } else {
-                contentDiv.textContent = `[Error: ${error.message}]`;
+                // If the loading indicator was still up, replace it with the error.
+                // Otherwise, show the error.
+                contentDiv.innerText = `[Error: ${error.message}]`;
                 console.error('Chat Error:', error);
             }
         } finally {
+            // Clean up
             abortController = null;
             interruptBtn.classList.add('hidden');
         }
