@@ -88,7 +88,9 @@ def api_chat():
                 stream=True,
             )
             for chunk in stream:
-                yield json.dumps(chunk) + '\n'
+                # The chunk is a Pydantic model (ChatResponse), so we use
+                # .model_dump_json() to get a JSON string representation.
+                yield chunk.model_dump_json() + '\n'
 
         return Response(generate(), mimetype='application/json')
 
