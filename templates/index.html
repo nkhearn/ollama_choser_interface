@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Char.py Web</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div id="app-container">
+        <!-- Setup Screen -->
+        <div id="setup-screen">
+            <div class="setup-box">
+                <h1>Welcome to Char.py</h1>
+                <p>Select a model and a character prompt to begin.</p>
+
+                <div class="selection-group">
+                    <label for="model-select">Choose a Model:</label>
+                    <select id="model-select" class="styled-select">
+                        <option value="">Loading models...</option>
+                    </select>
+                </div>
+
+                <div class="selection-group">
+                    <label for="prompt-select">Choose a Character Prompt:</label>
+                    <select id="prompt-select" class="styled-select">
+                        <option value="">Loading prompts...</option>
+                    </select>
+                </div>
+
+                <button id="start-chat-btn" class="styled-button" disabled>Start Chat</button>
+            </div>
+        </div>
+
+        <!-- Chat Screen -->
+        <div id="chat-screen" class="hidden">
+            <header class="chat-header">
+                <h2 id="character-name">Chat</h2>
+                <div class="header-buttons">
+                    <button id="new-chat-btn" class="header-btn">New Chat</button>
+                    <button id="restart-btn" class="header-btn">Restart</button>
+                </div>
+            </header>
+
+            <main id="chat-window" class="chat-window">
+                <!-- Messages will be injected here -->
+            </main>
+
+            <footer class="chat-footer">
+                <form id="chat-form" class="chat-form">
+                    <textarea id="message-input" placeholder="Type your message..." rows="1"></textarea>
+                    <button type="submit" id="send-btn" class="send-btn">Send</button>
+                </form>
+                <button id="interrupt-btn" class="interrupt-btn hidden">Interrupt</button>
+            </footer>
+        </div>
+    </div>
+    <script src="/static/script.js"></script>
+</body>
+</html>
