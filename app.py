@@ -26,14 +26,21 @@ def load_prompt_content(filename: str) -> str | None:
         return None
 
 def get_available_models():
-    """Returns a list of available Ollama models."""
+    """
+    Returns a list of available Ollama models by accessing the 'model' key
+    in each model's dictionary, as returned by the ollama client.
+    """
     try:
         client = ollama.Client(host=OLLAMA_HOST)
+        # client.list() returns a dictionary with a 'models' key.
         response = client.list()
-        models = getattr(response, 'models', [])
-        return [{'name': model.name} for model in models]
+        models_list = response.get('models', [])
+
+        # Each item in models_list is a dictionary. The model name is in the 'model' key.
+        # The frontend expects a list of dictionaries, each with a 'name' key.
+        return [{'name': model['model']} for model in models_list]
     except Exception as e:
-        print(f"[ERROR] Could not connect to Ollama: {e}")
+        print(f"[ERROR] Could not connect to Ollama or parse models: {e}")
         return []
 
 # --- API ROUTES ---
@@ -81,7 +88,9 @@ def api_chat():
                 stream=True,
             )
             for chunk in stream:
-                yield json.dumps(chunk) + '\n'
+                # The chunk is a Pydantic model (ChatResponse), so we use
+                # .model_dump_json() to get a JSON string representation.
+                yield chunk.model_dump_json() + '\n'
 
         return Response(generate(), mimetype='application/json')
 
