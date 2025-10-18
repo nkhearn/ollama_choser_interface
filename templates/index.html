@@ -37,17 +37,37 @@
             <header class="chat-header">
                 <h2 id="character-name">Chat</h2>
                 <div class="header-buttons">
-                    <button id="new-chat-btn" class="header-btn">New Chat</button>
-                    <button id="restart-btn" class="header-btn">Restart</button>
+                    <button id="settings-toggle-btn" class="header-btn">Settings</button>
                 </div>
             </header>
+
+            <div id="settings-menu" class="settings-menu hidden">
+                <div class="selection-group">
+                    <label for="model-select-chat">Choose a Model:</label>
+                    <select id="model-select-chat" class="styled-select"></select>
+                </div>
+                <div class="selection-group">
+                    <label for="prompt-select-chat">Choose a Character Prompt:</label>
+                    <select id="prompt-select-chat" class="styled-select"></select>
+                </div>
+                <div class="settings-actions">
+                    <button id="new-chat-btn" class="styled-button">New Chat</button>
+                    <button id="restart-btn" class="styled-button">Back to Setup</button>
+                </div>
+            </div>
 
             <main id="chat-window" class="chat-window">
                 <!-- Messages will be injected here -->
             </main>
 
             <footer class="chat-footer">
+                <div id="image-preview-container" class="image-preview-container hidden">
+                    <img id="image-preview" src="#" alt="Image preview"/>
+                    <button id="remove-image-btn" class="remove-image-btn">&times;</button>
+                </div>
                 <form id="chat-form" class="chat-form">
+                    <button type="button" id="attach-image-btn" class="attach-btn">+</button>
+                    <input type="file" id="image-upload" accept="image/*" class="hidden">
                     <textarea id="message-input" placeholder="Type your message..." rows="1"></textarea>
                     <button type="submit" id="send-btn" class="send-btn">Send</button>
                 </form>

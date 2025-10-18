@@ -81,6 +81,13 @@ def api_chat():
     try:
         client = ollama.Client(host=OLLAMA_HOST)
 
+        # The user's message is the last one in the list
+        # Check if the last message has images and adapt the payload
+        last_message = chat_messages[-1]
+        if 'images' in last_message and last_message['images']:
+            # Assuming one image for simplicity, as per the frontend logic
+            last_message['images'] = [last_message['images'][0]]
+
         def generate():
             stream = client.chat(
                 model=model,
