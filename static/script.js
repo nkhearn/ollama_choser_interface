@@ -34,32 +34,23 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!response.ok) throw new Error('Failed to fetch config');
             const config = await response.json();
 
-            function populateSelects(models, prompts) {
-                modelSelect.innerHTML = '<option value="">Select a model</option>';
-                modelSelectChat.innerHTML = '<option value="">Select a model</option>';
-                models.forEach(model => {
-                    const option1 = document.createElement('option');
-                    option1.value = model.name;
-                    option1.textContent = model.name;
-                    modelSelect.appendChild(option1);
+            // Populate models
+            modelSelect.innerHTML = '<option value="">Select a model</option>';
+            config.models.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model.name;
+                option.textContent = model.name;
+                modelSelect.appendChild(option);
+            });
 
-                    const option2 = option1.cloneNode(true);
-                    modelSelectChat.appendChild(option2);
-                });
-
-                promptSelect.innerHTML = '<option value="">Select a prompt</option>';
-                promptSelectChat.innerHTML = '<option value="">Select a prompt</option>';
-                prompts.forEach(prompt => {
-                    const option1 = document.createElement('option');
-                    option1.value = prompt;
-                    option1.textContent = prompt.replace('.prompt', '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                    promptSelect.appendChild(option1);
-
-                    const option2 = option1.cloneNode(true);
-                    promptSelectChat.appendChild(option2);
-                });
-            }
-            populateSelects(config.models, config.prompts);
+            // Populate prompts
+            promptSelect.innerHTML = '<option value="">Select a prompt</option>';
+            config.prompts.forEach(prompt => {
+                const option = document.createElement('option');
+                option.value = prompt;
+                option.textContent = prompt.replace('.prompt', '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                promptSelect.appendChild(option);
+            });
 
         } catch (error) {
             console.error('Initialization Error:', error);
