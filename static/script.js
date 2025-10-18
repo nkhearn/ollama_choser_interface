@@ -6,16 +6,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const startChatBtn = document.getElementById('start-chat-btn');
     const characterName = document.getElementById('character-name');
     const chatWindow = document.getElementById('chat-window');
+    const settingsToggleBtn = document.getElementById('settings-toggle-btn');
+    const settingsMenu = document.getElementById('settings-menu');
+    const modelSelectChat = document.getElementById('model-select-chat');
+    const promptSelectChat = document.getElementById('prompt-select-chat');
     const messageInput = document.getElementById('message-input');
     const chatForm = document.getElementById('chat-form');
     const interruptBtn = document.getElementById('interrupt-btn');
     const newChatBtn = document.getElementById('new-chat-btn');
     const restartBtn = document.getElementById('restart-btn');
+    const attachImageBtn = document.getElementById('attach-image-btn');
+    const imageUpload = document.getElementById('image-upload');
+    const imagePreviewContainer = document.getElementById('image-preview-container');
+    const imagePreview = document.getElementById('image-preview');
+    const removeImageBtn = document.getElementById('remove-image-btn');
 
     let messages = [];
     let abortController = null;
     let selectedModel = '';
     let selectedPrompt = '';
+    let attachedImage = null; // To store the base64 encoded image
 
     // --- INITIALIZATION ---
     async function initialize() {
@@ -24,23 +34,32 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!response.ok) throw new Error('Failed to fetch config');
             const config = await response.json();
 
-            // Populate models
-            modelSelect.innerHTML = '<option value="">Select a model</option>';
-            config.models.forEach(model => {
-                const option = document.createElement('option');
-                option.value = model.name;
-                option.textContent = model.name;
-                modelSelect.appendChild(option);
-            });
+            function populateSelects(models, prompts) {
+                modelSelect.innerHTML = '<option value="">Select a model</option>';
+                modelSelectChat.innerHTML = '<option value="">Select a model</option>';
+                models.forEach(model => {
+                    const option1 = document.createElement('option');
+                    option1.value = model.name;
+                    option1.textContent = model.name;
+                    modelSelect.appendChild(option1);
 
-            // Populate prompts
-            promptSelect.innerHTML = '<option value="">Select a prompt</option>';
-            config.prompts.forEach(prompt => {
-                const option = document.createElement('option');
-                option.value = prompt;
-                option.textContent = prompt.replace('.prompt', '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                promptSelect.appendChild(option);
-            });
+                    const option2 = option1.cloneNode(true);
+                    modelSelectChat.appendChild(option2);
+                });
+
+                promptSelect.innerHTML = '<option value="">Select a prompt</option>';
+                promptSelectChat.innerHTML = '<option value="">Select a prompt</option>';
+                prompts.forEach(prompt => {
+                    const option1 = document.createElement('option');
+                    option1.value = prompt;
+                    option1.textContent = prompt.replace('.prompt', '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    promptSelect.appendChild(option1);
+
+                    const option2 = option1.cloneNode(true);
+                    promptSelectChat.appendChild(option2);
+                });
+            }
+            populateSelects(config.models, config.prompts);
 
         } catch (error) {
             console.error('Initialization Error:', error);
@@ -58,6 +77,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function showChatScreen() {
         const promptName = selectedPrompt.replace('.prompt', '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
         characterName.textContent = `${promptName} (${selectedModel.split(':')[0]})`;
+
+        // Sync the dropdowns in the settings menu
+        modelSelectChat.value = selectedModel;
+        promptSelectChat.value = selectedPrompt;
+
         setupScreen.classList.add('hidden');
         chatScreen.classList.remove('hidden');
         messageInput.focus();
@@ -70,30 +94,56 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- CHAT LOGIC ---
-    function addMessageToUI(sender, text) {
+    function addMessageToUI(sender, text, imageUrl = null) {
         const messageWrapper = document.createElement('div');
         messageWrapper.classList.add('message', sender);
-        messageWrapper.innerHTML = `<div class="sender">${sender === 'user' ? 'You' : characterName.textContent}</div><div class="content">${text}</div>`;
 
-        // Since the flex-direction is column-reverse, we add to the top
-        chatWindow.insertBefore(messageWrapper, chatWindow.firstChild);
+        const senderName = sender === 'user' ? 'You' : characterName.textContent;
+        let messageHTML = `<span class="sender">${senderName}: </span>`;
+
+        if (imageUrl) {
+            messageHTML += `<div class="message-image"><img src="${imageUrl}" alt="attached image"></div>`;
+        }
+
+        // Use a separate element for the text to ensure proper escaping
+        const textNode = document.createElement('span');
+        textNode.innerText = text;
+
+        messageWrapper.innerHTML = messageHTML;
+        messageWrapper.appendChild(textNode);
+
+        chatWindow.appendChild(messageWrapper);
+        chatWindow.scrollTop = chatWindow.scrollHeight;
     }
 
     function resetChat() {
         messages = [];
         chatWindow.innerHTML = '';
         messageInput.value = '';
+        attachedImage = null;
+        imagePreviewContainer.classList.add('hidden');
+        imageUpload.value = ''; // Reset file input
     }
 
     async function handleChatSubmit(e) {
         e.preventDefault();
         const userInput = messageInput.value.trim();
-        if (!userInput) return;
+        if (!userInput && !attachedImage) return;
 
-        addMessageToUI('user', userInput);
-        messages.push({ role: 'user', content: userInput });
+        addMessageToUI('user', userInput, attachedImage);
+
+        const userMessage = { role: 'user', content: userInput };
+        if (attachedImage) {
+            userMessage.images = [attachedImage];
+        }
+        messages.push(userMessage);
+
+        // Reset UI
         messageInput.value = '';
-        messageInput.style.height = 'auto'; // Reset height
+        messageInput.style.height = 'auto';
+        attachedImage = null;
+        imagePreviewContainer.classList.add('hidden');
+        imageUpload.value = '';
 
         await fetchLLMResponse();
     }
@@ -105,14 +155,19 @@ document.addEventListener('DOMContentLoaded', () => {
         // Create the UI element for the assistant's message
         const assistantMessageDiv = document.createElement('div');
         assistantMessageDiv.classList.add('message', 'assistant');
-        assistantMessageDiv.innerHTML = `<div class="sender">${characterName.textContent}</div><div class="content"></div>`;
-        chatWindow.insertBefore(assistantMessageDiv, chatWindow.firstChild);
+        const senderSpan = document.createElement('span');
+        senderSpan.className = 'sender';
+        senderSpan.textContent = `${characterName.textContent}: `;
+        const contentSpan = document.createElement('span');
+        contentSpan.innerText = '🤔...'; // Loading indicator
 
-        const contentDiv = assistantMessageDiv.querySelector('.content');
+        assistantMessageDiv.appendChild(senderSpan);
+        assistantMessageDiv.appendChild(contentSpan);
+        chatWindow.appendChild(assistantMessageDiv);
+        chatWindow.scrollTop = chatWindow.scrollHeight;
+
+
         let fullResponse = "";
-
-        // Show a loading indicator immediately for better UX
-        contentDiv.textContent = "🤔...";
 
         try {
             const response = await fetch('/api/chat', {
@@ -142,7 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (done) break;
 
                 if (isFirstChunk) {
-                    contentDiv.textContent = ""; // Clear "🤔..."
+                    contentSpan.innerText = ""; // Clear "🤔..."
                     isFirstChunk = false;
                 }
 
@@ -157,13 +212,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (parsed.message && parsed.message.content) {
                             fullResponse += parsed.message.content;
                             // Use innerText to properly render newlines from the model
-                            contentDiv.innerText = fullResponse;
+                            contentSpan.innerText = fullResponse;
+                            chatWindow.scrollTop = chatWindow.scrollHeight; // Keep scrolled to the bottom
                         }
-                    } catch (e) {
+                    } catch (e) 'monaco', 'courier new', monospace
                         console.error("Failed to parse JSON line:", line, e);
                     }
                 }
-                chatWindow.scrollTop = 0; // Keep scrolled to the latest message
             }
 
             // After the loop, process any remaining data in the buffer
@@ -172,7 +227,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const parsed = JSON.parse(buffer);
                     if (parsed.message && parsed.message.content) {
                         fullResponse += parsed.message.content;
-                        contentDiv.innerText = fullResponse;
+                        contentSpan.innerText = fullResponse;
                     }
                 } catch (e) {
                     console.error("Failed to parse final JSON buffer:", buffer, e);
@@ -188,11 +243,11 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             // Handle fetch errors (like network issues) or server errors
             if (error.name === 'AbortError') {
-                contentDiv.innerText += "\n\n[Response interrupted]";
+                contentSpan.innerText += "\n\n[Response interrupted]";
             } else {
                 // If the loading indicator was still up, replace it with the error.
                 // Otherwise, show the error.
-                contentDiv.innerText = `[Error: ${error.message}]`;
+                contentSpan.innerText = `[Error: ${error.message}]`;
                 console.error('Chat Error:', error);
             }
         } finally {
@@ -214,8 +269,51 @@ document.addEventListener('DOMContentLoaded', () => {
     startChatBtn.addEventListener('click', showChatScreen);
     chatForm.addEventListener('submit', handleChatSubmit);
     interruptBtn.addEventListener('click', handleInterrupt);
-    newChatBtn.addEventListener('click', resetChat);
+    newChatBtn.addEventListener('click', () => {
+        resetChat();
+        settingsMenu.classList.add('hidden');
+    });
     restartBtn.addEventListener('click', showSetupScreen);
+    settingsToggleBtn.addEventListener('click', () => {
+        settingsMenu.classList.toggle('hidden');
+    });
+
+    // --- Image Upload Listeners ---
+    attachImageBtn.addEventListener('click', () => imageUpload.click());
+
+    imageUpload.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                // The result is a base64 string. We only need the part after the comma.
+                attachedImage = e.target.result.split(',')[1];
+                imagePreview.src = e.target.result;
+                imagePreviewContainer.classList.remove('hidden');
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    removeImageBtn.addEventListener('click', () => {
+        attachedImage = null;
+        imagePreviewContainer.classList.add('hidden');
+        imageUpload.value = ''; // Reset the file input
+    });
+
+    modelSelectChat.addEventListener('change', (e) => {
+        selectedModel = e.target.value;
+        const promptName = selectedPrompt.replace('.prompt', '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        characterName.textContent = `${promptName} (${selectedModel.split(':')[0]})`;
+        resetChat();
+    });
+
+    promptSelectChat.addEventListener('change', (e) => {
+        selectedPrompt = e.target.value;
+        const promptName = selectedPrompt.replace('.prompt', '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        characterName.textContent = `${promptName} (${selectedModel.split(':')[0]})`;
+        resetChat();
+    });
 
     // Auto-resize textarea
     messageInput.addEventListener('input', () => {
